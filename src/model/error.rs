@@ -2,12 +2,9 @@
 
 use std::{
     error::Error as StdError,
-    fmt::{
-        Display,
-        Formatter,
-        Result as FmtResult
-    }
+    fmt::{Display, Formatter, Result as FmtResult},
 };
+
 use super::Permissions;
 
 /// An error returned from the [`model`] module.
@@ -89,6 +86,20 @@ pub enum Error {
     /// [`RoleId`]: super::id::RoleId
     /// [`Cache`]: crate::cache::Cache
     RoleNotFound,
+    /// An indication that a [member][`Member`] could not be found by
+    /// [Id][`UserId`] in the [`Cache`].
+    ///
+    /// [`Member`]: super::guild::Member
+    /// [`UserId`]: super::id::UserId
+    /// [`Cache`]: crate::cache::Cache
+    MemberNotFound,
+    /// An indication that a [channel][`Channel`] could not be found by
+    /// [Id][`ChannelId`] in the [`Cache`].
+    ///
+    /// [`Channel`]: super::channel::Channel
+    /// [`ChannelId`]: super::id::ChannelId
+    /// [`Cache`]: crate::cache::Cache
+    ChannelNotFound,
     /// Indicates that there are hierarchy problems restricting an action.
     ///
     /// For example, when banning a user, if the other user has a role with an
@@ -112,6 +123,10 @@ pub enum Error {
     ///
     /// [`Cache`]: crate::cache::Cache
     ItemMissing,
+    /// Indicates that a member, role or channel from the wrong [`Guild`] was provided.
+    ///
+    /// [`Guild`]: super::guild::Guild
+    WrongGuild,
     /// Indicates that a [`Message`]s content was too long and will not
     /// successfully send, as the length is over 2000 codepoints.
     ///
@@ -130,6 +145,26 @@ pub enum Error {
     NameTooShort,
     /// Indicates that the webhook name is over the 100 characters limit.
     NameTooLong,
+    /// Indicates that the bot is not author of the message.
+    /// This error is returned in private/direct channels.
+    NotAuthor,
+    /// Indicates that the webhook token is missing.
+    NoTokenSet,
+}
+
+impl Error {
+    /// Return `true` if the model error is related to an item missing in the
+    /// cache.
+    pub fn is_cache_err(&self) -> bool {
+        match self {
+            Self::ItemMissing
+            | Self::ChannelNotFound
+            | Self::RoleNotFound
+            | Self::GuildNotFound
+            | Self::MemberNotFound => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Error {
@@ -140,15 +175,20 @@ impl Display for Error {
             Error::EmbedTooLarge(_) => f.write_str("Embed too large."),
             Error::GuildNotFound => f.write_str("Guild not found in the cache."),
             Error::RoleNotFound => f.write_str("Role not found in the cache."),
+            Error::MemberNotFound => f.write_str("Member not found in the cache."),
+            Error::ChannelNotFound => f.write_str("Channel not found in the cache."),
             Error::Hierarchy => f.write_str("Role hierarchy prevents this action."),
             Error::InvalidChannelType => f.write_str("The channel cannot perform the action."),
             Error::InvalidPermissions(_) => f.write_str("Invalid permissions."),
             Error::InvalidUser => f.write_str("The current user cannot perform the action."),
             Error::ItemMissing => f.write_str("The required item is missing from the cache."),
+            Error::WrongGuild => f.write_str("Provided member or channel is from the wrong guild."),
             Error::MessageTooLong(_) => f.write_str("Message too large."),
             Error::MessagingBot => f.write_str("Attempted to message another bot user."),
             Error::NameTooShort => f.write_str("Name is under the character limit."),
             Error::NameTooLong => f.write_str("Name is over the character limit."),
+            Error::NotAuthor => f.write_str("The bot is not author of this message."),
+            Error::NoTokenSet => f.write_str("Token is not set."),
         }
     }
 }

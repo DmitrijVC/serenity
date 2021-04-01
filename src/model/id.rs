@@ -1,10 +1,12 @@
 //! A collection of newtypes defining type-strong IDs.
 
-use chrono::{Utc, DateTime, NaiveDateTime};
-use crate::internal::prelude::*;
-use serde::de::{Deserialize, Deserializer};
 use std::fmt::{Display, Formatter, Result as FmtResult};
+
+use chrono::{DateTime, NaiveDateTime, Utc};
+use serde::de::{Deserialize, Deserializer};
+
 use super::utils::U64Visitor;
+use crate::internal::prelude::*;
 
 macro_rules! id_u64 {
     ($($name:ident;)*) => {
@@ -139,6 +141,14 @@ pub struct StickerId(pub u64);
 #[derive(Copy, Clone, Default, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
 pub struct StickerPackId(pub u64);
 
+/// An identifier for an interaction.
+#[derive(Copy, Clone, Default, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
+pub struct InteractionId(pub u64);
+
+/// An identifier for a slash command.
+#[derive(Copy, Clone, Default, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
+pub struct CommandId(pub u64);
+
 id_u64! {
     AttachmentId;
     ApplicationId;
@@ -153,4 +163,6 @@ id_u64! {
     UserId;
     WebhookId;
     AuditLogEntryId;
+    InteractionId;
+    CommandId;
 }

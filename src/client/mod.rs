@@ -27,46 +27,46 @@ mod event_handler;
 #[cfg(feature = "gateway")]
 mod extras;
 
-pub use self::{
-    context::Context,
-    error::Error as ClientError,
+#[cfg(all(feature = "cache", feature = "gateway"))]
+use std::time::Duration;
+use std::{
+    boxed::Box,
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::{Context as FutContext, Poll},
 };
 
+use futures::future::BoxFuture;
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, error, info, instrument};
+use typemap_rev::{TypeMap, TypeMapKey};
+
+#[cfg(feature = "gateway")]
+use self::bridge::gateway::{
+    GatewayIntents,
+    ShardManager,
+    ShardManagerError,
+    ShardManagerMonitor,
+    ShardManagerOptions,
+};
+#[cfg(feature = "voice")]
+use self::bridge::voice::VoiceGatewayManager;
+pub use self::{context::Context, error::Error as ClientError};
 #[cfg(feature = "gateway")]
 pub use self::{
     event_handler::{EventHandler, RawEventHandler},
     extras::Extras,
 };
-
-pub use crate::CacheAndHttp;
-
-#[cfg(feature = "cache")]
-pub use crate::cache::Cache;
-
-use crate::internal::prelude::*;
-use tokio::sync::{Mutex, RwLock};
 #[cfg(feature = "gateway")]
 use super::gateway::GatewayError;
-#[cfg(feature = "gateway")]
-use self::bridge::gateway::{GatewayIntents, ShardManager, ShardManagerMonitor, ShardManagerOptions, ShardManagerError};
-use std::{
-    boxed::Box,
-    sync::Arc,
-    future::Future,
-    pin::Pin,
-    task::{Context as FutContext, Poll},
-};
-#[cfg(all(feature = "cache", feature = "gateway"))]
-use std::time::Duration;
-use tracing::{error, debug, info, instrument};
-
+#[cfg(feature = "cache")]
+pub use crate::cache::Cache;
 #[cfg(feature = "framework")]
 use crate::framework::Framework;
-#[cfg(feature = "voice")]
-use self::bridge::voice::VoiceGatewayManager;
 use crate::http::Http;
-use typemap_rev::{TypeMap, TypeMapKey};
-use futures::future::BoxFuture;
+use crate::internal::prelude::*;
+pub use crate::CacheAndHttp;
 
 /// A builder implementing [`Future`] building a [`Client`] to interact with Discord.
 #[cfg(feature = "gateway")]
@@ -87,17 +87,7 @@ pub struct ClientBuilder<'a> {
 
 #[cfg(feature = "gateway")]
 impl<'a> ClientBuilder<'a> {
-    /// Construct a new builder to call methods on for the client construction.
-    /// The `token` will automatically be prefixed "Bot " if not already.
-    ///
-    /// **Panic**:
-    /// If you enabled the `framework`-feature (on by default), you must specify
-    /// a framework via the [`framework`] or [`framework_arc`] method,
-    /// otherwise awaiting the builder will cause a panic.
-    ///
-    /// [`framework`]: Self::framework
-    /// [`framework_arc`]: Self::framework_arc
-    pub fn new(token: impl AsRef<str>) -> Self {
+    fn _new() -> Self {
         Self {
             data: Some(TypeMap::new()),
             http: None,
@@ -111,13 +101,43 @@ impl<'a> ClientBuilder<'a> {
             voice_manager: None,
             event_handler: None,
             raw_event_handler: None,
-        }.token(token)
+        }
+    }
+
+    /// Construct a new builder to call methods on for the client construction.
+    /// The `token` will automatically be prefixed "Bot " if not already.
+    ///
+    /// **Panic**:
+    /// If you have enabled the `framework`-feature (on by default), you must specify
+    /// a framework via the [`framework`] or [`framework_arc`] method,
+    /// otherwise awaiting the builder will cause a panic.
+    ///
+    /// [`framework`]: Self::framework
+    /// [`framework_arc`]: Self::framework_arc
+    pub fn new(token: impl AsRef<str>) -> Self {
+        Self::_new().token(token)
+    }
+
+    /// Construct a new builder with a [`Http`] instance to calls methods on
+    /// for the client construction.
+    ///
+    /// **Panic**:
+    /// If you have enabled the `framework`-feature (on by default), you must specify
+    /// a framework via the [`framework`] or [`framework_arc`] method,
+    /// otherwise awaiting the builder will cause a panic.
+    ///
+    /// [`Http`]: crate::http::Http
+    /// [`framework`]: Self::framework
+    /// [`framework_arc`]: Self::framework_arc
+    pub fn new_with_http(http: Http) -> Self {
+        let mut c = Self::_new();
+        c.http = Some(http);
+        c
     }
 
     /// Sets a token for the bot. If the token is not prefixed "Bot ",
     /// this method will automatically do so.
     pub fn token(mut self, token: impl AsRef<str>) -> Self {
-
         let token = token.as_ref().trim().to_string();
 
         self.http = Some(Http::new_with_token(&token));
@@ -178,7 +198,8 @@ impl<'a> ClientBuilder<'a> {
     /// [`framework_arc`]: Self::framework_arc
     #[cfg(feature = "framework")]
     pub fn framework<F>(mut self, framework: F) -> Self
-    where F: Framework + Send + Sync + 'static,
+    where
+        F: Framework + Send + Sync + 'static,
     {
         self.framework = Some(Arc::new(Box::new(framework)));
 
@@ -192,7 +213,10 @@ impl<'a> ClientBuilder<'a> {
     ///
     /// [`framework`]: Self::framework
     #[cfg(feature = "framework")]
-    pub fn framework_arc(mut self, framework: Arc<Box<dyn Framework + Send + Sync + 'static>>) -> Self {
+    pub fn framework_arc(
+        mut self,
+        framework: Arc<Box<dyn Framework + Send + Sync + 'static>>,
+    ) -> Self {
         self.framework = Some(framework);
 
         self
@@ -209,7 +233,8 @@ impl<'a> ClientBuilder<'a> {
     /// [`voice_manager_arc`]: Self::voice_manager_arc
     #[cfg(feature = "voice")]
     pub fn voice_manager<V>(mut self, voice_manager: V) -> Self
-    where V: VoiceGatewayManager + Send + Sync + 'static,
+    where
+        V: VoiceGatewayManager + Send + Sync + 'static,
     {
         self.voice_manager = Some(Arc::new(voice_manager));
 
@@ -223,7 +248,10 @@ impl<'a> ClientBuilder<'a> {
     ///
     /// [`voice_manager`]: #method.voice_manager
     #[cfg(feature = "voice")]
-    pub fn voice_manager_arc(mut self, voice_manager: Arc<dyn VoiceGatewayManager + Send + Sync + 'static>) -> Self {
+    pub fn voice_manager_arc(
+        mut self,
+        voice_manager: Arc<dyn VoiceGatewayManager + Send + Sync + 'static>,
+    ) -> Self {
         self.voice_manager = Some(voice_manager);
 
         self
@@ -262,6 +290,7 @@ impl<'a> ClientBuilder<'a> {
 impl<'a> Future for ClientBuilder<'a> {
     type Output = Result<Client>;
 
+    #[allow(clippy::unwrap_used)] // Allowing unwrap because all should be Some() by this point
     #[instrument(skip(self))]
     fn poll(mut self: Pin<&mut Self>, ctx: &mut FutContext<'_>) -> Poll<Self::Output> {
         if self.fut.is_none() {
@@ -303,7 +332,8 @@ impl<'a> Future for ClientBuilder<'a> {
                         ws_url: &url,
                         cache_and_http: &cache_and_http,
                         intents,
-                    }).await
+                    })
+                    .await
                 };
 
                 Ok(Client {
@@ -342,8 +372,8 @@ impl<'a> Future for ClientBuilder<'a> {
 /// receive, acting as a "ping-pong" bot is simple:
 ///
 /// ```no_run
-/// use serenity::prelude::*;
 /// use serenity::model::prelude::*;
+/// use serenity::prelude::*;
 /// use serenity::Client;
 ///
 /// struct Handler;
@@ -454,7 +484,7 @@ pub struct Client {
     /// [`Event::MessageDelete`]: crate::model::event::Event::MessageDelete
     /// [`Event::MessageDeleteBulk`]: crate::model::event::Event::MessageDeleteBulk
     /// [`Event::MessageUpdate`]: crate::model::event::Event::MessageUpdate
-    /// [example 05]: https://github.com/serenity-rs/serenity/tree/current/examples/05_command_framework
+    /// [example 05]: https://github.com/serenity-rs/serenity/tree/current/examples/e05_command_framework
     pub data: Arc<RwLock<TypeMap>>,
     /// A HashMap of all shards instantiated by the Client.
     ///
@@ -493,7 +523,7 @@ pub struct Client {
     ///         let count = sm.shards_instantiated().await.len();
     ///         println!("Shard count instantiated: {}", count);
     ///
-    ///         tokio::time::delay_for(Duration::from_millis(5000)).await;
+    ///         tokio::time::sleep(Duration::from_millis(5000)).await;
     ///     }
     /// });
     /// #     Ok(())
@@ -520,7 +550,7 @@ pub struct Client {
     /// // Create a thread which will sleep for 60 seconds and then have the
     /// // shard manager shutdown.
     /// tokio::spawn(async move {
-    ///     tokio::time::delay_for(Duration::from_secs(60));
+    ///     tokio::time::sleep(Duration::from_secs(60));
     ///
     ///     shard_manager.lock().await.shutdown_all().await;
     ///
@@ -553,14 +583,6 @@ pub struct Client {
 }
 
 impl Client {
-    /// Returns a builder implementing [`Future`]. You can chain the builder methods and then await
-    /// in order to finish the [`Client`].
-    #[deprecated(since="0.9.0", note="please use `builder` instead")]
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new<'a>(token: impl AsRef<str>) -> ClientBuilder<'a> {
-        Self::builder(token)
-    }
-
     pub fn builder<'a>(token: impl AsRef<str>) -> ClientBuilder<'a> {
         ClientBuilder::new(token)
     }
@@ -858,12 +880,7 @@ impl Client {
 
             manager.set_shards(shard_data[0], init, shard_data[2]).await;
 
-            debug!(
-                "Initializing shard info: {} - {}/{}",
-                shard_data[0],
-                init,
-                shard_data[2],
-            );
+            debug!("Initializing shard info: {} - {}/{}", shard_data[0], init, shard_data[2],);
 
             if let Err(why) = manager.initialize() {
                 error!("Failed to boot a shard: {:?}", why);
@@ -876,8 +893,10 @@ impl Client {
         }
 
         if let Err(why) = self.shard_manager_worker.run().await {
-            let err =  match why {
-                ShardManagerError::DisallowedGatewayIntents => GatewayError::DisallowedGatewayIntents,
+            let err = match why {
+                ShardManagerError::DisallowedGatewayIntents => {
+                    GatewayError::DisallowedGatewayIntents
+                },
                 ShardManagerError::InvalidGatewayIntents => GatewayError::InvalidGatewayIntents,
                 ShardManagerError::InvalidToken => GatewayError::InvalidAuthentication,
             };

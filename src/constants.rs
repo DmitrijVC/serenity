@@ -26,6 +26,7 @@ pub const USER_AGENT: &str = concat!(
 );
 
 /// List of messages Discord shows on member join.
+#[allow(clippy::non_ascii_literal)] // allow for discord join messages
 pub static JOIN_MESSAGES: &[&str] = &[
     "$user just joined the server - glhf!",
     "$user just joined. Everyone, look busy!",
@@ -98,22 +99,20 @@ pub enum OpCode {
     HeartbeatAck = 11,
 }
 
-enum_number!(
-    OpCode {
-        Event,
-        Heartbeat,
-        Identify,
-        StatusUpdate,
-        VoiceStateUpdate,
-        VoiceServerPing,
-        Resume,
-        Reconnect,
-        GetGuildMembers,
-        InvalidSession,
-        Hello,
-        HeartbeatAck,
-    }
-);
+enum_number!(OpCode {
+    Event,
+    Heartbeat,
+    Identify,
+    StatusUpdate,
+    VoiceStateUpdate,
+    VoiceServerPing,
+    Resume,
+    Reconnect,
+    GetGuildMembers,
+    InvalidSession,
+    Hello,
+    HeartbeatAck,
+});
 
 impl OpCode {
     pub fn num(self) -> u64 {

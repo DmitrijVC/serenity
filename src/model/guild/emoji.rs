@@ -1,23 +1,20 @@
-use std::fmt::{
-    Display,
-    Formatter,
-    Result as FmtResult,
-    Write as FmtWrite
-};
-use crate::model::id::{EmojiId, RoleId};
+use std::fmt::{Display, Formatter, Result as FmtResult, Write as FmtWrite};
 
 #[cfg(all(feature = "cache", feature = "model"))]
 use serde_json::json;
+
+#[cfg(all(feature = "cache", feature = "model"))]
+use crate::cache::Cache;
+use crate::http::Http;
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::internal::prelude::*;
 #[cfg(all(feature = "cache", feature = "model"))]
-use crate::model::ModelError;
-#[cfg(all(feature = "cache", feature = "model"))]
 use crate::model::id::GuildId;
+use crate::model::id::{EmojiId, RoleId};
+use crate::model::user::User;
+use crate::model::utils::default_true;
 #[cfg(all(feature = "cache", feature = "model"))]
-use crate::cache::Cache;
-#[cfg(all(feature = "cache", feature = "model"))]
-use crate::http::CacheHttp;
+use crate::model::ModelError;
 
 /// Represents a custom guild emoji, which can either be created using the API,
 /// or via an integration. Emojis created using the API only work within the
@@ -28,6 +25,10 @@ pub struct Emoji {
     /// Whether the emoji is animated.
     #[serde(default)]
     pub animated: bool,
+    /// Whether the emoji can be used. This may be false when the guild loses boosts,
+    /// reducing the emoji limit.
+    #[serde(default = "default_true")]
+    pub available: bool,
     /// The Id of the emoji.
     pub id: EmojiId,
     /// The name of the emoji. It must be at least 2 characters long and can
@@ -36,26 +37,29 @@ pub struct Emoji {
     /// Whether the emoji is managed via an [`Integration`] service.
     ///
     /// [`Integration`]: super::Integration
+    #[serde(default)]
     pub managed: bool,
     /// Whether the emoji name needs to be surrounded by colons in order to be
     /// used by the client.
+    #[serde(default)]
     pub require_colons: bool,
     /// A list of [`Role`]s that are allowed to use the emoji. If there are no
     /// roles specified, then usage is unrestricted.
     ///
     /// [`Role`]: super::Role
+    #[serde(default)]
     pub roles: Vec<RoleId>,
+    /// The user who created the emoji.
+    pub user: Option<User>,
 }
 
 #[cfg(feature = "model")]
 impl Emoji {
     /// Deletes the emoji.
+    /// This method requires the cache to fetch the guild ID.
     ///
     /// **Note**: The [Manage Emojis] permission is required.
     ///
-    /// **Note**: Only user accounts may use this method.
-    ///
-    /// [Manage Emojis]: crate::model::permissions::Permissions::MANAGE_EMOJIS
     ///
     /// # Examples
     ///
@@ -86,36 +90,49 @@ impl Emoji {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Http`] if the current user lacks permission,
+    /// or may return [`ModelError::ItemMissing`] if the emoji is not
+    /// in the cache.
+    ///
+    /// [Manage Emojis]: crate::model::permissions::Permissions::MANAGE_EMOJIS
     #[cfg(feature = "cache")]
     #[inline]
-    pub async fn delete(&self, cache_http: impl CacheHttp) -> Result<()> {
-        let cache = cache_http.cache().ok_or(Error::Model(ModelError::ItemMissing))?;
-
-        match self.find_guild_id(&cache).await {
-            Some(guild_id) => cache_http.http().delete_emoji(guild_id.0, self.id.0).await,
+    pub async fn delete<T: AsRef<Cache> + AsRef<Http>>(&self, cache_http: T) -> Result<()> {
+        match self.find_guild_id(&cache_http).await {
+            Some(guild_id) => {
+                AsRef::<Http>::as_ref(&cache_http).delete_emoji(guild_id.0, self.id.0).await
+            },
             None => Err(Error::Model(ModelError::ItemMissing)),
         }
     }
 
     /// Edits the emoji by updating it with a new name.
+    /// This method requires the cache to fetch the guild ID.
     ///
     /// **Note**: The [Manage Emojis] permission is required.
     ///
-    /// **Note**: Only user accounts may use this method.
+    /// # Errors
+    ///
+    /// Returns [`Error::Http`] if the current user lacks permission,
+    /// or if an invalid name is given.
     ///
     /// [Manage Emojis]: crate::model::permissions::Permissions::MANAGE_EMOJIS
     #[cfg(feature = "cache")]
-    pub async fn edit(&mut self, cache_http: impl CacheHttp, name: &str) -> Result<()> {
-        let cache = cache_http.cache().ok_or(Error::Model(ModelError::ItemMissing))?;
-
-        match self.find_guild_id(&cache).await {
+    pub async fn edit<T: AsRef<Cache> + AsRef<Http>>(
+        &mut self,
+        cache_http: T,
+        name: &str,
+    ) -> Result<()> {
+        match self.find_guild_id(&cache_http).await {
             Some(guild_id) => {
                 let map = json!({
                     "name": name,
                 });
 
-                *self = cache_http
-                    .http()
+                *self = AsRef::<Http>::as_ref(&cache_http)
                     .edit_emoji(guild_id.0, self.id.0, &map)
                     .await?;
 
@@ -197,7 +214,7 @@ impl Emoji {
     /// ```
     #[inline]
     pub fn url(&self) -> String {
-        let extension = if self.animated {"gif"} else {"png"};
+        let extension = if self.animated { "gif" } else { "png" };
         format!(cdn!("/emojis/{}.{}"), self.id, extension)
     }
 }
@@ -223,10 +240,14 @@ impl Display for Emoji {
 
 impl From<Emoji> for EmojiId {
     /// Gets the Id of an `Emoji`.
-    fn from(emoji: Emoji) -> EmojiId { emoji.id }
+    fn from(emoji: Emoji) -> EmojiId {
+        emoji.id
+    }
 }
 
 impl<'a> From<&'a Emoji> for EmojiId {
     /// Gets the Id of an `Emoji`.
-    fn from(emoji: &Emoji) -> EmojiId { emoji.id }
+    fn from(emoji: &Emoji) -> EmojiId {
+        emoji.id
+    }
 }

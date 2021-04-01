@@ -1,6 +1,7 @@
-use crate::model::prelude::*;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+
+use crate::model::prelude::*;
 
 /// A builder for constructing a personal [`Message`] instance.
 /// This can be useful for emitting a manual [`dispatch`] to the framework,
@@ -245,6 +246,7 @@ fn dummy_message() -> Message {
             bot: false,
             discriminator: 0x0000,
             name: String::new(),
+            public_flags: None,
         },
         channel_id: ChannelId::default(),
         content: String::new(),
@@ -269,5 +271,7 @@ fn dummy_message() -> Message {
         flags: None,
         stickers: Vec::new(),
         referenced_message: None,
+        #[cfg(feature = "unstable_discord_api")]
+        interaction: None,
     }
 }

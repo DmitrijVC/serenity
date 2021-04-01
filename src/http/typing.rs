@@ -1,6 +1,15 @@
-use crate::{error::Result, http::Http};
 use std::sync::Arc;
-use tokio::{sync::oneshot::{self, Sender, error::TryRecvError}, time::{delay_for, Duration}};
+
+#[cfg(all(feature = "tokio_compat", not(feature = "tokio")))]
+use tokio::time::delay_for as sleep;
+#[cfg(feature = "tokio")]
+use tokio::time::sleep;
+use tokio::{
+    sync::oneshot::{self, error::TryRecvError, Sender},
+    time::Duration,
+};
+
+use crate::{error::Result, http::Http};
 
 /// A struct to start typing in a [`Channel`] for an indefinite period of time.
 ///
@@ -50,7 +59,12 @@ impl Typing {
     /// the returned `Typing` object or wait for it to be dropped. Note that on some
     /// clients, typing may persist for a few seconds after stopped.
     ///
+    /// # Errors
+    ///
+    /// Returns an  [`Error::Http`] if there is an error.
+    ///
     /// [`Channel`]: crate::model::channel::Channel
+    /// [`Error::Http`]: crate::error::Error::Http
     pub fn start(http: Arc<Http>, channel_id: u64) -> Result<Self> {
         let (sx, mut rx) = oneshot::channel();
 
@@ -65,7 +79,7 @@ impl Typing {
 
                 // It is unclear for how long typing persists after this method is called.
                 // It is generally assumed to be 7 or 10 seconds, so we use 7 to be safe.
-                delay_for(Duration::from_secs(7)).await;
+                sleep(Duration::from_secs(7)).await;
             }
 
             Result::Ok(())

@@ -36,7 +36,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! serenity = "0.9"
+//! serenity = "0.10"
 //! ```
 //!
 //! [`Context`]: crate::client::Context
@@ -54,10 +54,28 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(rust_2018_idioms)]
 #![deny(broken_intra_doc_links)]
-#![type_length_limit="3294819"] // needed so ShardRunner::run compiles with instrument.
+#![deny(
+    clippy::unwrap_used,
+    clippy::non_ascii_literal,
+    clippy::missing_errors_doc,
+    clippy::let_underscore_must_use
+)]
+#![type_length_limit = "3294819"] // needed so ShardRunner::run compiles with instrument.
 
 #[macro_use]
 extern crate serde;
+
+#[cfg(all(feature = "tokio_compat", not(feature = "tokio")))]
+extern crate tokio_compat as tokio;
+
+#[cfg(all(feature = "reqwest_compat", not(feature = "reqwest")))]
+extern crate reqwest_compat as reqwest;
+
+#[cfg(all(feature = "async-tungstenite_compat", not(feature = "async-tungstenite")))]
+extern crate async_tungstenite_compat as async_tungstenite;
+
+#[cfg(all(feature = "bytes_compat", not(feature = "bytes")))]
+extern crate bytes_compat as bytes;
 
 #[macro_use]
 mod internal;
@@ -72,6 +90,9 @@ pub mod builder;
 pub mod cache;
 #[cfg(feature = "client")]
 pub mod client;
+#[cfg(feature = "collector")]
+#[cfg_attr(docsrs, doc(cfg(feature = "collector")))]
+pub mod collector;
 #[cfg(feature = "framework")]
 pub mod framework;
 #[cfg(feature = "gateway")]
@@ -80,25 +101,21 @@ pub mod gateway;
 pub mod http;
 #[cfg(feature = "utils")]
 pub mod utils;
-#[cfg(feature = "collector")]
-pub mod collector;
 
 mod error;
 
-pub use crate::error::{Error, Result};
-
-#[cfg(all(feature = "client", feature = "gateway"))]
-pub use crate::client::Client;
+#[cfg(feature = "client")]
+use std::sync::Arc;
+#[cfg(all(feature = "client", feature = "cache"))]
+use std::time::Duration;
 
 #[cfg(all(feature = "client", feature = "cache"))]
 use crate::cache::Cache;
-#[cfg(all(feature = "client", feature = "cache"))]
-use std::time::Duration;
-#[cfg(feature = "client")]
-use std::sync::Arc;
+#[cfg(all(feature = "client", feature = "gateway"))]
+pub use crate::client::Client;
+pub use crate::error::{Error, Result};
 #[cfg(feature = "client")]
 use crate::http::Http;
-
 
 #[cfg(feature = "client")]
 #[derive(Clone, Default)]
@@ -112,10 +129,9 @@ pub struct CacheAndHttp {
 }
 
 // For the procedural macros in `command_attr`.
-#[cfg(feature = "standard_framework")]
-#[doc(hidden)]
-pub use static_assertions;
-
 pub use async_trait::async_trait;
 pub use futures;
 pub use futures::future::FutureExt;
+#[cfg(feature = "standard_framework")]
+#[doc(hidden)]
+pub use static_assertions;

@@ -1,10 +1,11 @@
 //! Models pertaining to the gateway.
 
-use serde::de::Error as DeError;
-use serde::ser::{SerializeStruct, Serialize, Serializer};
-use super::utils::*;
-use super::prelude::*;
 use bitflags::bitflags;
+use serde::de::Error as DeError;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+
+use super::prelude::*;
+use super::utils::*;
 
 /// A representation of the data retrieved from the bot gateway endpoint.
 ///
@@ -56,14 +57,14 @@ pub struct Activity {
     pub timestamps: Option<ActivityTimestamps>,
     /// The sync ID of the activity. Mainly used by the Spotify activity
     /// type which uses this parameter to store the track ID.
-    #[cfg(feature = "unstable")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
+    #[cfg(feature = "unstable_discord_api")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "unstable_discord_api")))]
     pub sync_id: Option<String>,
     /// The session ID of the activity. Reserved for specific activity
     /// types, such as the Activity that is transmitted when a user is
     /// listening to Spotify.
-    #[cfg(feature = "unstable")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "unstable")))]
+    #[cfg(feature = "unstable_discord_api")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "unstable_discord_api")))]
     pub session_id: Option<String>,
     /// The Stream URL if [`kind`] is [`ActivityType::Streaming`].
     ///
@@ -98,7 +99,10 @@ impl Activity {
     ///     Ok(())
     /// }
     /// ```
-    pub fn playing(name: &str) -> Activity {
+    pub fn playing<N>(name: N) -> Activity
+    where
+        N: ToString,
+    {
         Activity {
             application_id: None,
             assets: None,
@@ -112,9 +116,9 @@ impl Activity {
             state: None,
             emoji: None,
             timestamps: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             sync_id: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             session_id: None,
             url: None,
         }
@@ -148,7 +152,11 @@ impl Activity {
     ///     Ok(())
     /// }
     /// ```
-    pub fn streaming(name: &str, url: &str) -> Activity {
+    pub fn streaming<N, U>(name: N, url: U) -> Activity
+    where
+        N: ToString,
+        U: ToString,
+    {
         Activity {
             application_id: None,
             assets: None,
@@ -162,9 +170,9 @@ impl Activity {
             state: None,
             emoji: None,
             timestamps: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             sync_id: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             session_id: None,
             url: Some(url.to_string()),
         }
@@ -195,7 +203,10 @@ impl Activity {
     ///     Ok(())
     /// }
     /// ```
-    pub fn listening(name: &str) -> Activity {
+    pub fn listening<N>(name: N) -> Activity
+    where
+        N: ToString,
+    {
         Activity {
             application_id: None,
             assets: None,
@@ -209,9 +220,9 @@ impl Activity {
             state: None,
             emoji: None,
             timestamps: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             sync_id: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             session_id: None,
             url: None,
         }
@@ -242,7 +253,10 @@ impl Activity {
     ///     Ok(())
     /// }
     /// ```
-    pub fn competing(name: &str) -> Activity {
+    pub fn competing<N>(name: N) -> Activity
+    where
+        N: ToString,
+    {
         Activity {
             application_id: None,
             assets: None,
@@ -256,9 +270,9 @@ impl Activity {
             state: None,
             emoji: None,
             timestamps: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             sync_id: None,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             session_id: None,
             url: None,
         }
@@ -296,11 +310,13 @@ impl<'de> Deserialize<'de> for Activity {
             None => None,
         };
 
-        let kind = map.remove("type")
+        let kind = map
+            .remove("type")
             .and_then(|v| ActivityType::deserialize(v).ok())
             .unwrap_or(ActivityType::Playing);
 
-        let name = map.remove("name")
+        let name = map
+            .remove("name")
             .and_then(|v| String::deserialize(v).ok())
             .unwrap_or_else(String::new);
 
@@ -329,20 +345,19 @@ impl<'de> Deserialize<'de> for Activity {
             None => None,
         };
 
-        #[cfg(feature = "unstable")]
+        #[cfg(feature = "unstable_discord_api")]
         let sync_id = match map.remove("sync_id") {
             Some(v) => serde_json::from_value::<Option<_>>(v).map_err(DeError::custom)?,
             None => None,
         };
 
-        #[cfg(feature = "unstable")]
+        #[cfg(feature = "unstable_discord_api")]
         let session_id = match map.remove("session_id") {
             Some(v) => serde_json::from_value::<Option<_>>(v).map_err(DeError::custom)?,
             None => None,
         };
 
-        let url = map.remove("url")
-            .and_then(|v| serde_json::from_value::<String>(v).ok());
+        let url = map.remove("url").and_then(|v| serde_json::from_value::<String>(v).ok());
 
         Ok(Activity {
             application_id,
@@ -357,9 +372,9 @@ impl<'de> Deserialize<'de> for Activity {
             state,
             emoji,
             timestamps,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             sync_id,
-            #[cfg(feature = "unstable")]
+            #[cfg(feature = "unstable_discord_api")]
             session_id,
             url,
         })
@@ -433,7 +448,6 @@ pub struct ActivityEmoji {
     pub animated: Option<bool>,
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ActivityType {
@@ -449,15 +463,13 @@ pub enum ActivityType {
     Competing = 5,
 }
 
-enum_number!(
-    ActivityType {
-        Playing,
-        Streaming,
-        Listening,
-        Custom,
-        Competing,
-    }
-);
+enum_number!(ActivityType {
+    Playing,
+    Streaming,
+    Listening,
+    Custom,
+    Competing
+});
 
 impl ActivityType {
     pub fn num(self) -> u64 {
@@ -474,7 +486,9 @@ impl ActivityType {
 }
 
 impl Default for ActivityType {
-    fn default() -> Self { ActivityType::Playing }
+    fn default() -> Self {
+        ActivityType::Playing
+    }
 }
 
 /// A representation of the data retrieved from the gateway endpoint.
@@ -517,14 +531,14 @@ pub struct Presence {
 impl<'de> Deserialize<'de> for Presence {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Presence, D::Error> {
         let mut map = JsonMap::deserialize(deserializer)?;
-        let mut user_map = map.remove("user")
+        let mut user_map = map
+            .remove("user")
             .ok_or_else(|| DeError::custom("expected presence user"))
             .and_then(JsonMap::deserialize)
             .map_err(DeError::custom)?;
 
         let (user_id, user) = if user_map.len() > 1 {
-            let user = User::deserialize(Value::Object(user_map))
-                .map_err(DeError::custom)?;
+            let user = User::deserialize(Value::Object(user_map)).map_err(DeError::custom)?;
 
             (user.id, Some(user))
         } else {
@@ -538,21 +552,19 @@ impl<'de> Deserialize<'de> for Presence {
         };
 
         let activities = match map.remove("activities") {
-            Some(v) => serde_json::from_value::<Vec<Activity>>(v)
-                .map_err(DeError::custom)?,
+            Some(v) => serde_json::from_value::<Vec<Activity>>(v).map_err(DeError::custom)?,
             None => Vec::new(),
         };
 
         let client_status = match map.remove("client_status") {
             Some(v) => {
                 serde_json::from_value::<Option<ClientStatus>>(v).map_err(DeError::custom)?
-            }
+            },
             None => None,
         };
 
         let last_modified = match map.remove("last_modified") {
-            Some(v) => serde_json::from_value::<Option<u64>>(v)
-                .map_err(DeError::custom)?,
+            Some(v) => serde_json::from_value::<Option<u64>>(v).map_err(DeError::custom)?,
             None => None,
         };
 
@@ -575,7 +587,9 @@ impl<'de> Deserialize<'de> for Presence {
 
 impl Serialize for Presence {
     fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         #[derive(Serialize)]
         struct UserId {
             id: u64,
@@ -589,12 +603,9 @@ impl Serialize for Presence {
         if let Some(user) = &self.user {
             state.serialize_field("user", &user)?;
         } else {
-            state.serialize_field(
-                "user",
-                &UserId {
-                    id: self.user_id.0,
-                },
-            )?;
+            state.serialize_field("user", &UserId {
+                id: self.user_id.0,
+            })?;
         }
 
         state.end()
@@ -605,10 +616,19 @@ impl Serialize for Presence {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct Ready {
+    pub application: PartialCurrentApplicationInfo,
     pub guilds: Vec<GuildStatus>,
-    #[serde(default, serialize_with = "serialize_presences", deserialize_with = "deserialize_presences")]
+    #[serde(
+        default,
+        serialize_with = "serialize_presences",
+        deserialize_with = "deserialize_presences"
+    )]
     pub presences: HashMap<UserId, Presence>,
-    #[serde(default, serialize_with = "serialize_private_channels", deserialize_with = "deserialize_private_channels")]
+    #[serde(
+        default,
+        serialize_with = "serialize_private_channels",
+        deserialize_with = "deserialize_private_channels"
+    )]
     pub private_channels: HashMap<ChannelId, Channel>,
     pub session_id: String,
     pub shard: Option<[u64; 2]>,

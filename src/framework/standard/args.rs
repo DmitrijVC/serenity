@@ -1,9 +1,9 @@
-use uwl::Stream;
-
+use std::borrow::Cow;
 use std::error::Error as StdError;
 use std::marker::PhantomData;
 use std::{fmt, str::FromStr};
-use std::borrow::Cow;
+
+use uwl::Stream;
 
 /// Defines how an operation on an `Args` method failed.
 #[derive(Debug)]
@@ -96,7 +96,10 @@ struct Token {
 impl Token {
     #[inline]
     fn new(kind: TokenKind, start: usize, end: usize) -> Self {
-        Token { kind, span: (start, end) }
+        Token {
+            kind,
+            span: (start, end),
+        }
     }
 }
 
@@ -180,7 +183,6 @@ enum State {
 /// assert_eq!(args.single::<String>().unwrap(), "hello");
 /// // Same here.
 /// assert_eq!(args.single::<String>().unwrap(), "world!");
-///
 /// ```
 ///
 /// We can also parse "quoted arguments" (no pun intended):
@@ -390,21 +392,21 @@ impl Args {
         let mut s = s;
 
         match self.state {
-            State::None => {}
+            State::None => {},
             State::Quoted => {
                 s = remove_quotes(s);
-            }
+            },
             State::Trimmed => {
                 s = trim(s);
-            }
+            },
             State::QuotedTrimmed => {
                 s = remove_quotes(s);
                 s = trim(s);
-            }
+            },
             State::TrimmedQuoted => {
                 s = trim(s);
                 s = remove_quotes(s);
-            }
+            },
         }
 
         s
@@ -467,7 +469,7 @@ impl Args {
         match self.state {
             State::None => self.state = State::Trimmed,
             State::Quoted => self.state = State::QuotedTrimmed,
-            _ => {}
+            _ => {},
         }
 
         self
@@ -484,7 +486,7 @@ impl Args {
         match self.state {
             State::Trimmed => self.state = State::None,
             State::QuotedTrimmed | State::TrimmedQuoted => self.state = State::Quoted,
-            _ => {}
+            _ => {},
         }
 
         self
@@ -521,7 +523,7 @@ impl Args {
             match self.state {
                 State::None => self.state = State::Quoted,
                 State::Trimmed => self.state = State::TrimmedQuoted,
-                _ => {}
+                _ => {},
             }
         }
 
@@ -539,7 +541,7 @@ impl Args {
         match self.state {
             State::Quoted => self.state = State::None,
             State::QuotedTrimmed | State::TrimmedQuoted => self.state = State::Trimmed,
-            _ => {}
+            _ => {},
         }
 
         self
@@ -560,8 +562,15 @@ impl Args {
     /// assert_eq!(args.current(), Some("4"));
     /// ```
     ///
+    /// # Errors
+    ///
+    /// May return either [`Error::Parse`] if a parse error occurs, or
+    /// [`Error::Eos`] if there are no further remaining args.
+    ///
     /// [`trimmed`]: Self::trimmed
     /// [`quoted`]: Self::quoted
+    /// [`Error::Parse`]: Error::Parse
+    /// [`Error::Eos`]: Error::Eos
     #[inline]
     pub fn parse<T: FromStr>(&self) -> Result<T, T::Err> {
         T::from_str(self.current().ok_or(Error::Eos)?).map_err(Error::Parse)
@@ -585,6 +594,10 @@ impl Args {
     /// assert_eq!(args.single::<u32>().unwrap(), 2);
     /// assert!(args.is_empty());
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// May return the same errors as `parse`.
     ///
     /// [`parse`]: Self::parse
     /// [`advance`]: Self::advance
@@ -611,6 +624,11 @@ impl Args {
     /// assert!(args.is_empty());
     /// ```
     ///
+    /// # Errors
+    ///
+    /// May return the same errors as [`parse`].
+    ///
+    /// [`parse`]: Self::parse
     #[inline]
     pub fn single_quoted<T: FromStr>(&mut self) -> Result<T, T::Err> {
         let p = self.quoted().parse::<T>()?;
@@ -716,6 +734,12 @@ impl Args {
     /// assert_eq!(args.single::<String>().unwrap(), "c4");
     /// assert!(args.is_empty());
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Eos`] if no argument can be parsed.
+    ///
+    /// [`Error::Eos`]: Error::Eos
     pub fn find<T: FromStr>(&mut self) -> Result<T, T::Err> {
         if self.is_empty() {
             return Err(Error::Eos);
@@ -758,6 +782,12 @@ impl Args {
     /// assert_eq!(args.single::<u32>().unwrap(), 2);
     /// assert!(args.is_empty());
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Eos`] if no argument can be parsed.
+    ///
+    /// [`Error::Eos`]: Error::Eos
     pub fn find_n<T: FromStr>(&mut self) -> Result<T, T::Err> {
         if self.is_empty() {
             return Err(Error::Eos);
@@ -844,6 +874,7 @@ pub struct Iter<'a, T: FromStr> {
     _marker: PhantomData<T>,
 }
 
+#[allow(clippy::missing_errors_doc)]
 impl<'a, T: FromStr> Iter<'a, T> {
     /// Retrieve the current argument.
     pub fn current(&mut self) -> Option<&str> {
@@ -863,7 +894,7 @@ impl<'a, T: FromStr> Iter<'a, T> {
         match self.state {
             State::None => self.state = State::Quoted,
             State::Trimmed => self.state = State::TrimmedQuoted,
-            _ => {}
+            _ => {},
         }
 
         self
@@ -875,7 +906,7 @@ impl<'a, T: FromStr> Iter<'a, T> {
         match self.state {
             State::None => self.state = State::Trimmed,
             State::Quoted => self.state = State::QuotedTrimmed,
-            _ => {}
+            _ => {},
         }
 
         self

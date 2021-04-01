@@ -1,18 +1,19 @@
-#[cfg(feature = "gateway")]
-use crate::client::bridge::gateway::ShardMessenger;
-#[cfg(feature = "gateway")]
-use crate::gateway::InterMessage;
-use crate::model::prelude::*;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+
 use futures::channel::mpsc::UnboundedSender as Sender;
-use crate::http::Http;
+use tokio::sync::RwLock;
 use typemap_rev::TypeMap;
 
 #[cfg(feature = "cache")]
 pub use crate::cache::Cache;
+#[cfg(feature = "gateway")]
+use crate::client::bridge::gateway::ShardMessenger;
 #[cfg(feature = "collector")]
 use crate::collector::{MessageFilter, ReactionFilter};
+#[cfg(feature = "gateway")]
+use crate::gateway::InterMessage;
+use crate::http::Http;
+use crate::model::prelude::*;
 
 /// The context is a general utility struct provided on event dispatches, which
 /// helps with dealing with the current "context" of the event dispatch.
@@ -65,11 +66,7 @@ impl Context {
     }
 
     #[cfg(all(not(feature = "cache"), not(feature = "gateway")))]
-    pub fn easy(
-        data: Arc<RwLock<TypeMap>>,
-        shard_id: u64,
-        http: Arc<Http>,
-    ) -> Context {
+    pub fn easy(data: Arc<RwLock<TypeMap>>, shard_id: u64, http: Arc<Http>) -> Context {
         Context {
             shard_id,
             data,
@@ -392,6 +389,7 @@ impl Context {
     /// sent back to `filter`'s paired receiver.
     #[inline]
     #[cfg(feature = "collector")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "collector")))]
     pub async fn set_message_filter(&self, filter: MessageFilter) {
         self.shard.set_message_filter(filter);
     }
@@ -400,21 +398,28 @@ impl Context {
     /// sent back to `filter`'s paired receiver.
     #[inline]
     #[cfg(feature = "collector")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "collector")))]
     pub async fn set_reaction_filter(&self, filter: ReactionFilter) {
         self.shard.set_reaction_filter(filter);
     }
 }
 
 impl AsRef<Http> for Context {
-    fn as_ref(&self) -> &Http { &self.http }
+    fn as_ref(&self) -> &Http {
+        &self.http
+    }
 }
 
 impl AsRef<Http> for Arc<Context> {
-    fn as_ref(&self) -> &Http { &self.http }
+    fn as_ref(&self) -> &Http {
+        &self.http
+    }
 }
 
 impl AsRef<Arc<Http>> for Context {
-    fn as_ref(&self) -> &Arc<Http> { &self.http }
+    fn as_ref(&self) -> &Arc<Http> {
+        &self.http
+    }
 }
 
 #[cfg(feature = "cache")]

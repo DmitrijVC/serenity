@@ -1,9 +1,9 @@
-use crate::model::id::{UserId, RoleId};
-
-use serde_json::{json, Value};
-use serde::{Serialize, Deserialize};
-
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::model::id::{RoleId, UserId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ParseValue {
@@ -57,7 +57,6 @@ pub enum ParseValue {
 ///     am.parse(ParseValue::Everyone);
 ///     am.users(vec![msg.author.id])
 /// });
-///
 /// ```
 ///
 /// [`ChannelId::send_message`]: crate::model::id::ChannelId::send_message
@@ -74,11 +73,11 @@ impl CreateAllowedMentions {
     /// [`roles`]: Self::roles
     #[inline]
     pub fn parse(&mut self, value: ParseValue) -> &mut Self {
-        if let Some(val) = self.0.get_mut("parse") {
-            val.as_array_mut().unwrap().push(json![value]);
-        } else {
-            self.0.insert("parse", Value::Array(vec![json!(value)]));
-        }
+        let val = self.0.entry("parse").or_insert_with(|| Value::Array(Vec::new()));
+
+        let arr = val.as_array_mut().expect("Must be an array");
+        arr.push(json![value]);
+
         self
     }
 
@@ -91,51 +90,57 @@ impl CreateAllowedMentions {
     /// [`roles`]: Self::roles
     #[inline]
     pub fn empty_parse(&mut self) -> &mut Self {
-        if let Some(val) = self.0.get_mut("parse") {
-            val.as_array_mut().unwrap().clear();
-        } else {
-            self.0.insert("parse", Value::Array(vec![]));
-        }
+        let val = self.0.entry("parse").or_insert_with(|| Value::Array(Vec::new()));
+
+        let arr = val.as_array_mut().expect("Must be an array");
+        arr.clear();
+
         self
     }
 
     /// Sets the users that will be allowed to be mentioned.
     #[inline]
     pub fn users<U: Into<UserId>>(&mut self, users: impl IntoIterator<Item = U>) -> &mut Self {
-        self.0.insert("users", Value::Array({
-            users.into_iter().map(|i| json!(i.into().to_string())).collect::<Vec<_>>()
-        }));
+        self.0.insert(
+            "users",
+            Value::Array({
+                users.into_iter().map(|i| json!(i.into().to_string())).collect::<Vec<_>>()
+            }),
+        );
         self
     }
 
     /// Makes users unable to be mentioned.
     #[inline]
     pub fn empty_users(&mut self) -> &mut Self {
-        if let Some(val) = self.0.get_mut("users") {
-            val.as_array_mut().unwrap().clear();
-        } else {
-            self.0.insert("users", Value::Array(vec![]));
-        }
+        let val = self.0.entry("users").or_insert_with(|| Value::Array(Vec::new()));
+
+        let arr = val.as_array_mut().expect("Must be an array");
+        arr.clear();
+
         self
     }
 
     /// Sets the roles that will be allowed to be mentioned.
     #[inline]
     pub fn roles<R: Into<RoleId>>(&mut self, users: impl IntoIterator<Item = R>) -> &mut Self {
-        self.0.insert("roles", Value::Array({
-            users.into_iter().map(|i| json!(i.into().to_string())).collect::<Vec<_>>()
-        }));
+        self.0.insert(
+            "roles",
+            Value::Array({
+                users.into_iter().map(|i| json!(i.into().to_string())).collect::<Vec<_>>()
+            }),
+        );
         self
     }
 
     /// Makes roles unable to be mentioned.
     #[inline]
     pub fn empty_roles(&mut self) -> &mut Self {
-        if let Some(val) = self.0.get_mut("roles") {
-            val.as_array_mut().unwrap().clear();
-        } else {
-            self.0.insert("roles", Value::Array(vec![]));
-        }
+        let val = self.0.entry("roles").or_insert_with(|| Value::Array(Vec::new()));
+
+        let arr = val.as_array_mut().expect("Must be an array");
+        arr.clear();
+
         self
     }
 
